@@ -1,0 +1,28 @@
+{
+    "name": "rutatiina/journal-entry",
+    "description": "Laravel Package to manage journal entries",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Gilbert Rutatiina",
+            "email": "rutatiina@gmail.com"
+        }
+    ],
+    "minimum-stability": "beta",
+    "require": {
+        "laravel/framework": "^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Rutatiina\\JournalEntry\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Rutatiina\\JournalEntry\\JournalEntryServiceProvider"
+            ]
+        }
+    }
+}
