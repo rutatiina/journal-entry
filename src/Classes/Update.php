@@ -104,8 +104,7 @@ class Update
             $Txn->date = $this->txn['date'];
             $Txn->debit_financial_account_code = $this->txn['debit_financial_account_code'];
             $Txn->credit_financial_account_code = $this->txn['credit_financial_account_code'];
-            $Txn->debit_contact_id = $this->txn['debit_contact_id'];
-            $Txn->credit_contact_id = $this->txn['credit_contact_id'];
+            $Txn->contact_id = $this->txn['contact_id'];
             $Txn->contact_name = $this->txn['contact_name'];
             $Txn->contact_address = $this->txn['contact_address'];
             $Txn->reference = $this->txn['reference'];

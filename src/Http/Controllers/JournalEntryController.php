@@ -82,19 +82,12 @@ class JournalEntryController extends Controller
         $txnAttributes['terms_and_conditions'] = null;
         $txnAttributes['recordings'] = [$this->recordingCreate()];
 
-        unset($txnAttributes['txn_entree_id']); //!important
-        unset($txnAttributes['txn_type_id']); //!important
-        unset($txnAttributes['debit_contact_id']); //!important
-        unset($txnAttributes['credit_contact_id']); //!important
-
-        $data = [
+        return [
             'pageTitle' => 'Create Journal Entry', #required
             'pageAction' => 'Create', #required
             'txnUrlStore' => '/journal-entries', #required
             'txnAttributes' => $txnAttributes, #required
         ];
-
-        return $data;
     }
 
     public function store(Request $request)

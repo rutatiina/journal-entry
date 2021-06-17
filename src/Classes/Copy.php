@@ -36,7 +36,6 @@ class Copy
         $attributes['contact']['currency'] = $transactionContactCurrency;
         $attributes['contact']['currencies'] = $transactionContactCurrencies;
 
-        $attributes['contact_id'] = $attributes['debit_contact_id'];
         $attributes['taxes'] = json_decode('{}');
         $attributes['isRecurring'] = false;
         $attributes['recurring'] = [
