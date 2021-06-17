@@ -16,7 +16,7 @@ Route::group(['middleware' => ['web', 'auth', 'tenant', 'service.accounting']], 
 
     });
 
-    Route::resource('journal-entries/settings', 'Rutatiina\JournalEntry\Http\Controllers\SettingsController');
+    Route::resource('journal-entries/settings', 'Rutatiina\JournalEntry\Http\Controllers\JournalEntrySettingsController');
     Route::resource('journal-entries', 'Rutatiina\JournalEntry\Http\Controllers\JournalEntryController');
 
 });
