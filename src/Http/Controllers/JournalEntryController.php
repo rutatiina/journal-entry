@@ -29,7 +29,6 @@ class JournalEntryController extends Controller
     use ItemsVueSearchSelect;
     use Recording; // >> get the item attributes template << !!important
 
-    private  $txnEntreeSlug = 'Journal entries';
 
     public function __construct()
     {
@@ -181,7 +180,6 @@ class JournalEntryController extends Controller
         //print_r($request->all()); exit;
 
         $TxnStore = new TxnUpdate();
-        $TxnStore->txnEntreeSlug = $this->txnEntreeSlug;
         $TxnStore->txnInsertData = $request->all();
         $insert = $TxnStore->run();
 
@@ -249,8 +247,6 @@ class JournalEntryController extends Controller
         $TxnCopy = new TxnCopy();
         $txnAttributes = $TxnCopy->run($id);
 
-        $TxnNumber = new TxnNumber();
-        $txnAttributes['number'] = $TxnNumber->run($this->txnEntreeSlug);
 
         $data = [
             'pageTitle' => 'Copy Journal Entry', #required
@@ -272,8 +268,7 @@ class JournalEntryController extends Controller
 			->setRoute('edit', route('accounting.sales.estimates.edit', '_id_'))
 			->setRoute('process', route('accounting.sales.estimates.process', '_id_'))
 			->setSortBy($request->sort_by)
-			->paginate(false)
-			->findByEntree($this->txnEntreeSlug);
+			->paginate(false);
 
         return Datatables::of($txns)->make(true);
     }
