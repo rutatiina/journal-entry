@@ -3,6 +3,7 @@
 namespace Rutatiina\JournalEntry\Services;
 
 use Illuminate\Support\Facades\Validator;
+use Rutatiina\Contact\Models\Contact;
 
 class JournalEntryValidateService
 {
@@ -127,10 +128,14 @@ class JournalEntryValidateService
         $data['recordings'] = [];
         foreach ($requestInstance->recordings as $key => $recording)
         {
+            $contact = Contact::findOrFail($recording['contact_id']);
+
             $data['recordings'][] = [
                 'tenant_id' => $data['tenant_id'],
                 'created_by' => $data['created_by'],
                 'contact_id' => $recording['contact_id'],
+                'contact_name' => $contact->name,
+                'contact_address' => trim($contact->shipping_address_street1 . ' ' . $contact->shipping_address_street2),
                 'financial_account_code' => $recording['financial_account_code'],
                 'description' => $recording['description'],
                 'debit' => $recording['debit'],

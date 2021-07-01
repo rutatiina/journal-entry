@@ -90,35 +90,6 @@ class JournalEntryController extends Controller
     public function store(Request $request)
     {
         //return $request->all();
-        //return empty($request->recordings[0]['debit']) && empty($request->recordings[0]['credit']);
-
-        /*
-        $data = $request->all();
-
-        $rules = [
-            'items.*.debit' => ['numeric', 'gt:0', 'nullable'],
-            'items.*.credit' => ['numeric', 'gt:0', 'nullable']
-        ];
-
-        $request->validate($rules);
-
-        foreach ($data['recordings'] as &$recording)
-        {
-            if (isset($recording['debit']) && isset($recording['credit']))
-            {
-                if ($recording['debit'] > 0 && $recording['credit'] > 0)
-                {
-                    return response()->json([
-                        'message' => 'Journal Error!',
-                        'errors' => ['Both debit and credit cannot be set on the same item.']
-                    ], 422);
-                }
-            }
-        }
-        unset($recording);
-
-        $request->validate($rules);
-        //*/
 
         $storeService = JournalEntryService::store($request);
 
@@ -146,11 +117,13 @@ class JournalEntryController extends Controller
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
-        if (FacadesRequest::wantsJson())
-        {
-            $TxnRead = new TxnRead();
-            return $TxnRead->run($id);
-        }
+        $txn = JournalEntry::findOrFail($id);
+        $txn->load('contact', 'recordings.financial_account', 'ledgers');
+        $txn->setAppends([
+            'total_in_words',
+        ]);
+
+        return $txn->toArray();
     }
 
     public function edit($id)
