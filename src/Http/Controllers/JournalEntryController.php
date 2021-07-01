@@ -134,62 +134,53 @@ class JournalEntryController extends Controller
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
-        $TxnEdit = new TxnEdit();
-        $txnAttributes = $TxnEdit->run($id);
+        $txnAttributes = JournalEntryService::edit($id);
 
-        $data = [
+        return [
             'pageTitle' => 'Edit Journal Entry', #required
             'pageAction' => 'Edit', #required
-            'txnUrlStore' => '/financial-accounts/sales/estimates/' . $id, #required
+            'txnUrlStore' => '/journal-entries/' . $id, #required
             'txnAttributes' => $txnAttributes, #required
         ];
-
-        if (FacadesRequest::wantsJson())
-        {
-            return $data;
-        }
     }
 
     public function update(Request $request)
     {
         //print_r($request->all()); exit;
 
-        $TxnStore = new TxnUpdate();
-        $TxnStore->txnInsertData = $request->all();
-        $insert = $TxnStore->run();
+        $storeService = JournalEntryService::update($request);
 
-        if ($insert == false)
+        if ($storeService == false)
         {
             return [
                 'status' => false,
-                'messages' => $TxnStore->errors
+                'messages' => JournalEntryService::$errors
             ];
         }
 
         return [
             'status' => true,
             'messages' => ['Journal Entry updated'],
-            'number' => 0,
-            'callback' => URL::route('accounting.sales.estimates.show', [$insert->id], false)
+            'callback' => route('journal-entries.show', [$storeService->id], false)
         ];
     }
 
     public function destroy($id)
     {
-        $delete = Transaction::delete($id);
+        $destroy = JournalEntryService::destroy($id);
 
-        if ($delete)
+        if ($destroy)
         {
             return [
                 'status' => true,
-                'message' => 'Journal Entry deleted',
+                'messages' => ['Journal Entry deleted'],
             ];
         }
         else
         {
             return [
                 'status' => false,
-                'message' => implode('<br>', array_values(Transaction::$rg_errors))
+                'messages' => JournalEntryService::$errors
             ];
         }
     }
@@ -199,14 +190,13 @@ class JournalEntryController extends Controller
 
     public function approve($id)
     {
-        $TxnApprove = new TxnApprove();
-        $approve = $TxnApprove->run($id);
+        $approve = JournalEntryService::approve($id);
 
         if ($approve == false)
         {
             return [
                 'status' => false,
-                'messages' => $TxnApprove->errors
+                'messages' => JournalEntryService::$errors
             ];
         }
 
@@ -240,104 +230,6 @@ class JournalEntryController extends Controller
         {
             return $data;
         }
-    }
-
-    public function datatables(Request $request)
-    {
-        //return $request;
-
-        $txns = Transaction::setRoute('show', route('accounting.sales.estimates.show', '_id_'))
-            ->setRoute('edit', route('accounting.sales.estimates.edit', '_id_'))
-            ->setRoute('process', route('accounting.sales.estimates.process', '_id_'))
-            ->setSortBy($request->sort_by)
-            ->paginate(false);
-
-        return Datatables::of($txns)->make(true);
-    }
-
-    public function process($id, $processTo)
-    {
-        //load the vue version of the app
-        if (!FacadesRequest::wantsJson())
-        {
-            return view('l-limitless-bs4.layout_2-ltr-default.appVue');
-        }
-
-        $txn = Transaction::transaction($id); //print_r($originalTxn); exit;
-
-        if ($txn == false)
-        {
-            return redirect()->back()->withErrors(['error' => 'Error #E001: Transaction not found']);
-        }
-
-        $txnAttributes = Transaction::transactionForEdit($id);
-
-        //check if transaction has been processed before
-
-        $txnAttributes['id'] = '';
-        $txnAttributes['reference'] = $txn->number;
-        $txnAttributes['internal_ref'] = $txn->id;
-        $txnAttributes['due_date'] = $txn->expiry_date;
-
-        //var_dump($processTo); exit;
-
-        switch ($processTo)
-        {
-
-            case 'retainer-invoices':
-
-                $txnAttributes['number'] = Transaction::entreeNextNumber('retainer_invoice');
-                return [
-                    'pageTitle' => 'Process Journal Entry into Retainer Invoice', #required
-                    'pageAction' => 'Process Journal Entry', #required
-                    'txnUrlStore' => '/retainer-invoices', #required
-                    'txnAttributes' => $txnAttributes, #required
-                ];
-                break;
-
-            case 'sales-orders':
-
-                $txnAttributes['number'] = Transaction::entreeNextNumber('sales_order');
-                return [
-                    'pageTitle' => 'Process Journal Entry into Sales Order', #required
-                    'pageAction' => 'Process Journal Entry', #required
-                    'txnUrlStore' => '/sales-orders', #required
-                    'txnAttributes' => $txnAttributes, #required
-                ];
-                break;
-
-            case 'invoice':
-
-                $txnAttributes['number'] = Transaction::entreeNextNumber('invoice');
-                return [
-                    'pageTitle' => 'Process Journal Entry into Invoice', #required
-                    'pageAction' => 'Process Journal Entry', #required
-                    'txnUrlStore' => '/invoice', #required
-                    'txnAttributes' => $txnAttributes, #required
-                ];
-                break;
-
-            case 'recurring-invoices':
-
-                $txnAttributes['isRecurring'] = true;
-                $txnAttributes['number'] = Transaction::entreeNextNumber('recurring_invoice');
-                return [
-                    'pageTitle' => 'Process Journal Entry into Recurring Invoice', #required
-                    'pageAction' => 'Process Journal Entry', #required
-                    'txnUrlStore' => '/recurring-invoices', #required
-                    'txnAttributes' => $txnAttributes, #required
-                ];
-                break;
-
-            default:
-
-                break;
-
-        }
-
-
-        return redirect()->back()->withErrors(['error' => 'Unexpected Error #10015']);
-
     }
 
     public function exportToExcel(Request $request)

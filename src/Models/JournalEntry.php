@@ -50,7 +50,7 @@ class JournalEntry extends Model
         static::addGlobalScope(new TenantIdScope);
 
         self::deleting(function($txn) { // before delete() method call this
-             $txn->items()->each(function($row) {
+             $txn->recordings()->each(function($row) {
                 $row->delete();
              });
              $txn->comments()->each(function($row) {

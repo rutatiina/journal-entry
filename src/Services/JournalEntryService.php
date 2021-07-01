@@ -33,18 +33,12 @@ class JournalEntryService
     {
         $txn = JournalEntry::findOrFail($id);
         $txn->load('contact', 'recordings');
-        $txn->setAppends(['taxes']);
 
         $attributes = $txn->toArray();
 
         //print_r($attributes); exit;
 
         $attributes['_method'] = 'PATCH';
-
-        $attributes['contact']['currency'] = $attributes['contact']['currency_and_exchange_rate'];
-        $attributes['contact']['currencies'] = $attributes['contact']['currencies_and_exchange_rates'];
-
-        $attributes['taxes'] = json_decode('{}');
 
         foreach ($attributes['recordings'] as &$recording)
         {
@@ -151,7 +145,7 @@ class JournalEntryService
 
         try
         {
-            $Txn = JournalEntry::with('items', 'recordings')->findOrFail($data['id']);
+            $Txn = JournalEntry::with('ledgers', 'recordings')->findOrFail($data['id']);
 
             if ($Txn->status == 'approved')
             {
