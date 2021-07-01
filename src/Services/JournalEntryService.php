@@ -31,10 +31,8 @@ class JournalEntryService
 
     public static function edit($id)
     {
-        $taxes = Tax::all()->keyBy('code');
-
         $txn = JournalEntry::findOrFail($id);
-        $txn->load('contact', 'items.taxes');
+        $txn->load('contact', 'recordings');
         $txn->setAppends(['taxes']);
 
         $attributes = $txn->toArray();
@@ -48,30 +46,15 @@ class JournalEntryService
 
         $attributes['taxes'] = json_decode('{}');
 
-        foreach ($attributes['items'] as $key => $item)
+        foreach ($attributes['recordings'] as &$recording)
         {
-            $selectedItem = [
-                'id' => $item['item_id'],
-                'name' => $item['name'],
-                'description' => $item['description'],
-                'rate' => $item['rate'],
-                'tax_method' => 'inclusive',
-                'account_type' => null,
-            ];
-
-            $attributes['items'][$key]['selectedItem'] = $selectedItem; #required
-            $attributes['items'][$key]['selectedTaxes'] = []; #required
-            $attributes['items'][$key]['displayTotal'] = 0; #required
-
-            foreach ($item['taxes'] as $itemTax)
-            {
-                $attributes['items'][$key]['selectedTaxes'][] = $taxes[$itemTax['tax_code']];
-            }
-
-            $attributes['items'][$key]['rate'] = floatval($item['rate']);
-            $attributes['items'][$key]['quantity'] = floatval($item['quantity']);
-            $attributes['items'][$key]['total'] = floatval($item['total']);
-            $attributes['items'][$key]['displayTotal'] = $item['total']; #required
+            $recording['selectedItem'] = []; #required
+            $recording['selectedTaxes'] = []; #required
+            $recording['displayTotal'] = 0; #required
+            $recording['debit'] = floatval($recording['debit']);
+            $recording['credit'] = floatval($recording['credit']);
+            $recording['contact_id'] = floatval($recording['contact_id']);
+            $recording['financial_account_code'] = floatval($recording['financial_account_code']);
         };
 
         return $attributes;
@@ -98,31 +81,21 @@ class JournalEntryService
             //$Txn->document_name = $data['document_name'];
             $Txn->number = $data['number'];
             $Txn->date = $data['date'];
-            $Txn->credit_financial_account_code = $data['credit_financial_account_code'];
-            $Txn->contact_id = $data['contact_id'];
-            $Txn->contact_name = $data['contact_name'];
-            $Txn->contact_address = $data['contact_address'];
             $Txn->reference = $data['reference'];
-            $Txn->base_currency = $data['base_currency'];
-            $Txn->quote_currency = $data['quote_currency'];
-            $Txn->exchange_rate = $data['exchange_rate'];
-            $Txn->taxable_amount = $data['taxable_amount'];
+            $Txn->currency = $data['currency'];
             $Txn->total = $data['total'];
             $Txn->branch_id = $data['branch_id'];
             $Txn->store_id = $data['store_id'];
-            $Txn->due_date = $data['due_date'];
-            $Txn->contact_notes = $data['contact_notes'];
-            $Txn->terms_and_conditions = $data['terms_and_conditions'];
+            $Txn->notes = $data['notes'];
             $Txn->status = $data['status'];
 
             $Txn->save();
 
             $data['id'] = $Txn->id;
 
-            //print_r($data['items']); exit;
 
-            //Save the items >> $data['items']
-            JournalEntryRecordingService::store($data);
+            //Save the recordings >> $data['recordings']
+            $Txn->recordings()->createMany($data['recordings']);
 
             //Save the ledgers >> $data['ledgers']; and update the balances
             $Txn->ledgers()->createMany($data['ledgers']);
@@ -178,11 +151,11 @@ class JournalEntryService
 
         try
         {
-            $Txn = JournalEntry::with('items', 'ledgers')->findOrFail($data['id']);
+            $Txn = JournalEntry::with('items', 'recordings')->findOrFail($data['id']);
 
             if ($Txn->status == 'approved')
             {
-                self::$errors[] = 'Approved Transaction cannot be not be edited';
+                self::$errors[] = 'Approved JournalEntry cannot be not be edited';
                 return false;
             }
 
@@ -194,8 +167,7 @@ class JournalEntryService
 
             //Delete affected relations
             $Txn->ledgers()->delete();
-            $Txn->items()->delete();
-            $Txn->item_taxes()->delete();
+            $Txn->recordings()->delete();
             $Txn->comments()->delete();
             $Txn->delete();
 
@@ -242,14 +214,13 @@ class JournalEntryService
 
             if ($Txn->status == 'approved')
             {
-                self::$errors[] = 'Approved Transaction cannot be not be deleted';
+                self::$errors[] = 'Approved JournalEntry cannot be not be deleted';
                 return false;
             }
 
             //Delete affected relations
             $Txn->ledgers()->delete();
-            $Txn->items()->delete();
-            $Txn->item_taxes()->delete();
+            $Txn->recordings()->delete();
             $Txn->comments()->delete();
 
             //reverse the account balances
@@ -294,7 +265,7 @@ class JournalEntryService
         $taxes = Tax::all()->keyBy('code');
 
         $txn = JournalEntry::findOrFail($id);
-        $txn->load('contact', 'items.taxes');
+        $txn->load('contact', 'recordings');
         $txn->setAppends(['taxes']);
 
         $attributes = $txn->toArray();
@@ -302,8 +273,6 @@ class JournalEntryService
         #reset some values
         $attributes['number'] = self::nextNumber();
         $attributes['date'] = date('Y-m-d');
-        $attributes['due_date'] = '';
-        $attributes['expiry_date'] = '';
         #reset some values
 
         $attributes['contact']['currency'] = $attributes['contact']['currency_and_exchange_rate'];

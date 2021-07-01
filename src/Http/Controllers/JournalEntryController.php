@@ -2,9 +2,6 @@
 
 namespace Rutatiina\JournalEntry\Http\Controllers;
 
-use Rutatiina\JournalEntry\Models\Setting;
-use URL;
-use PDF;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Request as FacadesRequest;
 use Illuminate\Http\Request;
@@ -12,36 +9,35 @@ use App\Http\Controllers\Controller;
 use Rutatiina\JournalEntry\Models\JournalEntry;
 use Rutatiina\FinancialAccounting\Traits\FinancialAccountingTrait;
 use Rutatiina\Item\Traits\ItemsVueSearchSelect;
+use Rutatiina\JournalEntry\Services\JournalEntryService;
 use Yajra\DataTables\Facades\DataTables;
 
-use Rutatiina\JournalEntry\Classes\Store as TxnStore;
 use Rutatiina\JournalEntry\Classes\Update as TxnUpdate;
 use Rutatiina\JournalEntry\Classes\Approve as TxnApprove;
 use Rutatiina\JournalEntry\Classes\Read as TxnRead;
 use Rutatiina\JournalEntry\Classes\Copy as TxnCopy;
 use Rutatiina\JournalEntry\Classes\Edit as TxnEdit;
-use Rutatiina\JournalEntry\Classes\Number as TxnNumber;
-use Rutatiina\JournalEntry\Traits\Recording;
 
 class JournalEntryController extends Controller
 {
     use FinancialAccountingTrait;
     use ItemsVueSearchSelect;
-    use Recording; // >> get the item attributes template << !!important
 
+    // >> get the item attributes template << !!important
 
     public function __construct()
     {
-		$this->middleware('permission:estimates.view');
-		$this->middleware('permission:estimates.create', ['only' => ['create','store']]);
-		$this->middleware('permission:estimates.update', ['only' => ['edit','update']]);
-		$this->middleware('permission:estimates.delete', ['only' => ['destroy']]);
-	}
+        //$this->middleware('permission:estimates.view');
+        //$this->middleware('permission:estimates.create', ['only' => ['create','store']]);
+        //$this->middleware('permission:estimates.update', ['only' => ['edit','update']]);
+        //$this->middleware('permission:estimates.delete', ['only' => ['destroy']]);
+    }
 
     public function index()
-	{
+    {
         //load the vue version of the app
-        if (!FacadesRequest::wantsJson()) {
+        if (!FacadesRequest::wantsJson())
+        {
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
@@ -55,7 +51,8 @@ class JournalEntryController extends Controller
     public function create()
     {
         //load the vue version of the app
-        if (!FacadesRequest::wantsJson()) {
+        if (!FacadesRequest::wantsJson())
+        {
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
@@ -64,22 +61,23 @@ class JournalEntryController extends Controller
         $txnAttributes = (new JournalEntry)->rgGetAttributes();
 
         $txnAttributes['status'] = 'approved';
-        //$txnAttributes['contact_id'] = null;
         $txnAttributes['contact'] = json_decode('{"currencies":[]}'); #required
         $txnAttributes['date'] = date('Y-m-d');
 
         $txnAttributes['currency'] = $tenant->base_currency;
-        $txnAttributes['taxes'] = json_decode('{}');
-        $txnAttributes['isRecurring'] = false;
-        $txnAttributes['recurring'] = [
-            'date_range' => [],
-            'day_of_month' => '*',
-            'month' => '*',
-            'day_of_week' => '*',
+        $txnAttributes['notes'] = null;
+        $txnAttributes['recordings'] = [
+            [
+                'selectedTaxes' => [], #required
+                'selectedItem' => json_decode('{}'), #required
+                'displayTotal' => 0,
+                'description' => '',
+                'debit' => 0,
+                'credit' => 0,
+                'contact_id' => '',
+                'financial_account_code' => '',
+            ]
         ];
-        $txnAttributes['contact_notes'] = null;
-        $txnAttributes['terms_and_conditions'] = null;
-        $txnAttributes['recordings'] = [$this->recordingCreate()];
 
         return [
             'pageTitle' => 'Create Journal Entry', #required
@@ -90,10 +88,11 @@ class JournalEntryController extends Controller
     }
 
     public function store(Request $request)
-	{
-	    //print_r($request->all()); exit;
+    {
         //return $request->all();
+        //return empty($request->recordings[0]['debit']) && empty($request->recordings[0]['credit']);
 
+        /*
         $data = $request->all();
 
         $rules = [
@@ -119,44 +118,46 @@ class JournalEntryController extends Controller
         unset($recording);
 
         $request->validate($rules);
+        //*/
 
-	    $TxnStore = new TxnStore();
-        $TxnStore->txnInsertData = $request->all();
-        $insert = $TxnStore->run();
+        $storeService = JournalEntryService::store($request);
 
-        if ($insert == false) {
+        if ($storeService == false)
+        {
             return [
-                'status'    => false,
-                'messages'  => $TxnStore->errors
+                'status' => false,
+                'messages' => JournalEntryService::$errors
             ];
         }
 
         return [
-            'status'    => true,
-            'messages'  => ['Journal Entry saved'],
-            'number'    => 0,
-            'callback'  => URL::route('journal-entries.show', [$insert->id], false)
+            'status' => true,
+            'messages' => ['Journal Entry saved'],
+            'callback' => route('journal-entries.show', [$storeService->id], false)
         ];
 
     }
 
     public function show($id)
-	{
+    {
         //load the vue version of the app
-        if (!FacadesRequest::wantsJson()) {
+        if (!FacadesRequest::wantsJson())
+        {
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
-        if (FacadesRequest::wantsJson()) {
+        if (FacadesRequest::wantsJson())
+        {
             $TxnRead = new TxnRead();
             return $TxnRead->run($id);
         }
     }
 
     public function edit($id)
-	{
+    {
         //load the vue version of the app
-        if (!FacadesRequest::wantsJson()) {
+        if (!FacadesRequest::wantsJson())
+        {
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
@@ -166,56 +167,61 @@ class JournalEntryController extends Controller
         $data = [
             'pageTitle' => 'Edit Journal Entry', #required
             'pageAction' => 'Edit', #required
-            'txnUrlStore' => '/financial-accounts/sales/estimates/'.$id, #required
+            'txnUrlStore' => '/financial-accounts/sales/estimates/' . $id, #required
             'txnAttributes' => $txnAttributes, #required
         ];
 
-        if (FacadesRequest::wantsJson()) {
+        if (FacadesRequest::wantsJson())
+        {
             return $data;
         }
     }
 
     public function update(Request $request)
-	{
+    {
         //print_r($request->all()); exit;
 
         $TxnStore = new TxnUpdate();
         $TxnStore->txnInsertData = $request->all();
         $insert = $TxnStore->run();
 
-        if ($insert == false) {
+        if ($insert == false)
+        {
             return [
-                'status'    => false,
-                'messages'  => $TxnStore->errors
+                'status' => false,
+                'messages' => $TxnStore->errors
             ];
         }
 
         return [
-            'status'    => true,
-            'messages'  => ['Journal Entry updated'],
-            'number'    => 0,
-            'callback'  => URL::route('accounting.sales.estimates.show', [$insert->id], false)
+            'status' => true,
+            'messages' => ['Journal Entry updated'],
+            'number' => 0,
+            'callback' => URL::route('accounting.sales.estimates.show', [$insert->id], false)
         ];
-	}
+    }
 
     public function destroy($id)
-	{
-		$delete = Transaction::delete($id);
+    {
+        $delete = Transaction::delete($id);
 
-		if ($delete) {
-			return [
-				'status' => true,
-				'message' => 'Journal Entry deleted',
-			];
-		} else {
-			return [
-				'status' => false,
-				'message' => implode('<br>', array_values(Transaction::$rg_errors))
-			];
-		}
-	}
+        if ($delete)
+        {
+            return [
+                'status' => true,
+                'message' => 'Journal Entry deleted',
+            ];
+        }
+        else
+        {
+            return [
+                'status' => false,
+                'message' => implode('<br>', array_values(Transaction::$rg_errors))
+            ];
+        }
+    }
 
-	#-----------------------------------------------------------------------------------
+    #-----------------------------------------------------------------------------------
 
 
     public function approve($id)
@@ -223,24 +229,26 @@ class JournalEntryController extends Controller
         $TxnApprove = new TxnApprove();
         $approve = $TxnApprove->run($id);
 
-        if ($approve == false) {
+        if ($approve == false)
+        {
             return [
-                'status'    => false,
-                'messages'   => $TxnApprove->errors
+                'status' => false,
+                'messages' => $TxnApprove->errors
             ];
         }
 
         return [
-            'status'    => true,
-            'messages'   => ['Journal entry approved'],
+            'status' => true,
+            'messages' => ['Journal entry approved'],
         ];
 
     }
 
     public function copy($id)
-	{
+    {
         //load the vue version of the app
-        if (!FacadesRequest::wantsJson()) {
+        if (!FacadesRequest::wantsJson())
+        {
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
@@ -255,20 +263,21 @@ class JournalEntryController extends Controller
             'txnAttributes' => $txnAttributes, #required
         ];
 
-        if (FacadesRequest::wantsJson()) {
+        if (FacadesRequest::wantsJson())
+        {
             return $data;
         }
     }
 
     public function datatables(Request $request)
-	{
-		//return $request;
+    {
+        //return $request;
 
         $txns = Transaction::setRoute('show', route('accounting.sales.estimates.show', '_id_'))
-			->setRoute('edit', route('accounting.sales.estimates.edit', '_id_'))
-			->setRoute('process', route('accounting.sales.estimates.process', '_id_'))
-			->setSortBy($request->sort_by)
-			->paginate(false);
+            ->setRoute('edit', route('accounting.sales.estimates.edit', '_id_'))
+            ->setRoute('process', route('accounting.sales.estimates.process', '_id_'))
+            ->setSortBy($request->sort_by)
+            ->paginate(false);
 
         return Datatables::of($txns)->make(true);
     }
@@ -276,13 +285,15 @@ class JournalEntryController extends Controller
     public function process($id, $processTo)
     {
         //load the vue version of the app
-        if (!FacadesRequest::wantsJson()) {
+        if (!FacadesRequest::wantsJson())
+        {
             return view('l-limitless-bs4.layout_2-ltr-default.appVue');
         }
 
         $txn = Transaction::transaction($id); //print_r($originalTxn); exit;
 
-        if ($txn == false) {
+        if ($txn == false)
+        {
             return redirect()->back()->withErrors(['error' => 'Error #E001: Transaction not found']);
         }
 
@@ -297,7 +308,8 @@ class JournalEntryController extends Controller
 
         //var_dump($processTo); exit;
 
-        switch ($processTo) {
+        switch ($processTo)
+        {
 
             case 'retainer-invoices':
 
@@ -356,7 +368,7 @@ class JournalEntryController extends Controller
     }
 
     public function exportToExcel(Request $request)
-	{
+    {
         $txns = collect([]);
 
         $txns->push([
@@ -370,7 +382,8 @@ class JournalEntryController extends Controller
             ' ', //Currency
         ]);
 
-        foreach (array_reverse($request->ids) as $id) {
+        foreach (array_reverse($request->ids) as $id)
+        {
             $txn = Transaction::transaction($id);
 
             $txns->push([
@@ -386,7 +399,7 @@ class JournalEntryController extends Controller
         }
 
         $export = $txns->downloadExcel(
-            'maccounts-estimates-export-'.date('Y-m-d-H-m-s').'.xlsx',
+            'maccounts-estimates-export-' . date('Y-m-d-H-m-s') . '.xlsx',
             null,
             false
         );
@@ -411,7 +424,7 @@ class JournalEntryController extends Controller
         //return view('limitless-bs4::sales.estimates.pdf')->with($data);
 
         $pdf = PDF::loadView('limitless-bs4::sales.estimates.pdf', $data);
-        return $pdf->inline($txn->type->name.'-'.$txn->number.'.pdf');
+        return $pdf->inline($txn->type->name . '-' . $txn->number . '.pdf');
         //return $pdf->download($txn->type->name.'-'.$txn->number.'.pdf');
     }
 }

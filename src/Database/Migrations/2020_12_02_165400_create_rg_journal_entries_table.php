@@ -26,16 +26,18 @@ class CreateRgJournalEntriesTable extends Migration
 
             //>> table columns
             $table->unsignedBigInteger('project_id')->nullable();
-            $table->string('external_key', 100)->nullable();
             $table->unsignedBigInteger('app_id')->nullable();
+            $table->string('number', 250)->nullable();
             $table->date('date');
             $table->time('time')->nullable();
             $table->string('reference', 100)->nullable();
             $table->string('currency', 3);
             $table->unsignedDecimal('total', 20, 5);
+            $table->boolean('balances_where_updated')->default(0);
             $table->unsignedBigInteger('branch_id')->nullable();
             $table->unsignedBigInteger('store_id')->nullable();
             $table->string('status', 20)->nullable();
+            $table->string('notes', 250)->nullable();
 
         });
     }

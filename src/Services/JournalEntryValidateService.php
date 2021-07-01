@@ -3,7 +3,6 @@
 namespace Rutatiina\JournalEntry\Services;
 
 use Illuminate\Support\Facades\Validator;
-use Rutatiina\Contact\Models\Contact;
 
 class JournalEntryValidateService
 {
@@ -14,35 +13,52 @@ class JournalEntryValidateService
         //$request = request(); //used for the flash when validation fails
         $user = auth()->user();
 
+        /*
+        $rules = [
+            'items.*.debit' => ['numeric', 'gt:0', 'nullable'],
+            'items.*.credit' => ['numeric', 'gt:0', 'nullable']
+        ];
+
+        $request->validate($rules);
+
+        foreach ($data['recordings'] as &$recording)
+        {
+            if (isset($recording['debit']) && isset($recording['credit']))
+            {
+                if ($recording['debit'] > 0 && $recording['credit'] > 0)
+                {
+                    return response()->json([
+                        'message' => 'Journal Error!',
+                        'errors' => ['Both debit and credit cannot be set on the same item.']
+                    ], 422);
+                }
+            }
+        }
+        unset($recording);
+        //*/
 
         // >> data validation >>------------------------------------------------------------
 
         //validate the data
         $customMessages = [
-            'items.*.debit_financial_account_code.required' => "The item account is required",
-            'items.*.debit_financial_account_code.numeric' => "The item account must be numeric",
-            'items.*.debit_financial_account_code.gt' => "The item account is required",
-            'items.*.taxes.*.code.required' => "Tax code is required",
-            'items.*.taxes.*.total.required' => "Tax total is required",
+            'recordings.*.financial_account_code.required' => "The account is required",
+            'recordings.*.financial_account_code.numeric' => "The account must be numeric",
+            'recordings.*.financial_account_code.gt' => "The account is required",
+
+            'recordings.*.debit.numeric' => "The debit amount must be numeric",
+            'recordings.*.credit.numeric' => "The credit amount must be numeric",
+
         ];
 
         $rules = [
-            'contact_id' => 'required|numeric',
+            //'contact_id' => 'required|numeric',
             'date' => 'required|date',
-            'base_currency' => 'required',
-            'contact_notes' => 'string|nullable',
+            'currency' => 'required',
+            'notes' => 'string|nullable',
 
-            'items' => 'required|array',
-            'items.*.name' => 'required_without:item_id',
-            'items.*.rate' => 'required|numeric',
-            'items.*.quantity' => 'required|numeric|gt:0',
-            //'items.*.total' => 'required|numeric|in:' . $itemTotal, //todo custom validator to check this
-            'items.*.units' => 'numeric|nullable',
-            'items.*.debit_financial_account_code' => 'required|numeric|gt:0',
-            'items.*.taxes' => 'array|nullable',
-            'items.*.taxes.*.code' => 'required',
-            'items.*.taxes.*.total' => 'required|numeric',
-            //'items.*.taxes.*.exclusive' => 'required|numeric',
+            'recordings' => 'required|array',
+            'recordings.*.financial_account_code' => 'required|numeric',
+            'recordings.*.description' => 'required',
         ];
 
         $validator = Validator::make($requestInstance->all(), $rules, $customMessages);
@@ -53,10 +69,38 @@ class JournalEntryValidateService
             return false;
         }
 
+        $debitTotal = 0;
+        $creditTotal = 0;
+
+        //validate the recordings debit and credit amount
+        foreach ($requestInstance->recordings as $rowId => $recording)
+        {
+            $debitTotal += $recording['debit'];
+            $creditTotal += $recording['credit'];
+
+            //both deibt and credit connot be empty
+            if (empty($recording['debit']) && empty($recording['credit']))
+            {
+                self::$errors[] = 'The debit or credit amount is required for row #'.(++$rowId);
+                return false;
+            }
+
+            //both deibt and credit connot both be set
+            if (!empty($recording['debit']) && !empty($recording['credit']))
+            {
+                self::$errors[] = 'Either debit or credit amount is required not both for row #'.(++$rowId);
+                return false;
+            }
+        }
+
+        //total debit has to equal to the total credit
+        if ($debitTotal != $creditTotal)
+        {
+            self::$errors[] = 'The total debit amount has to be equal to the total credit amount.';
+            return false;
+        }
+
         // << data validation <<------------------------------------------------------------
-
-        $contact = Contact::findOrFail($requestInstance->contact_id);
-
 
         $data['id'] = $requestInstance->input('id', null); //for updating the id will always be posted
         $data['user_id'] = $user->id;
@@ -65,19 +109,13 @@ class JournalEntryValidateService
         $data['app'] = 'web';
         $data['number'] = $requestInstance->input('number');
         $data['date'] = $requestInstance->input('date');
-        $data['contact_id'] = $requestInstance->contact_id;
-        $data['contact_name'] = $contact->name;
-        $data['contact_address'] = trim($contact->shipping_address_street1 . ' ' . $contact->shipping_address_street2);
         $data['reference'] = $requestInstance->input('reference', null);
-        $data['base_currency'] =  $requestInstance->input('base_currency');
-        $data['quote_currency'] =  $requestInstance->input('quote_currency', $data['base_currency']);
-        $data['exchange_rate'] = $requestInstance->input('exchange_rate', 1);
+        $data['currency'] =  $requestInstance->input('currency');
         $data['branch_id'] = $requestInstance->input('branch_id', null);
         $data['store_id'] = $requestInstance->input('store_id', null);
-        $data['due_date'] = $requestInstance->input('due_date', null);
-        $data['terms_and_conditions'] = $requestInstance->input('terms_and_conditions', null);
-        $data['contact_notes'] = $requestInstance->input('contact_notes', null);
+        $data['notes'] = $requestInstance->input('notes', null);
         $data['status'] = strtolower($requestInstance->input('status', null));
+        $data['total'] = $debitTotal;
         $data['balances_where_updated'] = 0;
 
 
@@ -86,61 +124,27 @@ class JournalEntryValidateService
         $taxableAmount = 0;
 
         //Formulate the DB ready items array
-        $data['items'] = [];
-        foreach ($requestInstance->items as $key => $item)
+        $data['recordings'] = [];
+        foreach ($requestInstance->recordings as $key => $recording)
         {
-            $itemTaxes = $requestInstance->input('items.'.$key.'.taxes', []);
-
-            $txnTotal           += ($item['rate']*$item['quantity']);
-            $taxableAmount      += ($item['rate']*$item['quantity']);
-            $itemTaxableAmount   = ($item['rate']*$item['quantity']); //calculate the item taxable amount
-
-            foreach ($itemTaxes as $itemTax)
-            {
-                $txnTotal           += $itemTax['exclusive'];
-                $taxableAmount      -= $itemTax['inclusive'];
-                $itemTaxableAmount  -= $itemTax['inclusive']; //calculate the item taxable amount more by removing the inclusive amount
-            }
-
-            //use item selling_financial_account_code if available and default if not
-            $financialAccountToDebit = $item['debit_financial_account_code'];
-
-            $data['items'][] = [
+            $data['recordings'][] = [
                 'tenant_id' => $data['tenant_id'],
                 'created_by' => $data['created_by'],
-                'contact_id' => $item['contact_id'],
-                'item_id' => $item['item_id'],
-                'debit_financial_account_code' => $financialAccountToDebit,
-                'name' => $item['name'],
-                'description' => $item['description'],
-                'quantity' => $item['quantity'],
-                'rate' => $item['rate'],
-                'total' => $item['total'],
-                'taxable_amount' => $itemTaxableAmount,
-                'units' => $requestInstance->input('items.'.$key.'.units', null),
-                'batch' => $requestInstance->input('items.'.$key.'.batch', null),
-                'expiry' => $requestInstance->input('items.'.$key.'.expiry', null),
-                'taxes' => $itemTaxes,
+                'contact_id' => $recording['contact_id'],
+                'financial_account_code' => $recording['financial_account_code'],
+                'description' => $recording['description'],
+                'debit' => $recording['debit'],
+                'credit' => $recording['credit'],
             ];
 
-            //DR ledger
-            $data['ledgers'][$financialAccountToDebit]['financial_account_code'] = $financialAccountToDebit;
-            $data['ledgers'][$financialAccountToDebit]['effect'] = 'debit';
-            $data['ledgers'][$financialAccountToDebit]['total'] = @$data['ledgers'][$financialAccountToDebit]['total'] + $itemTaxableAmount;
-            $data['ledgers'][$financialAccountToDebit]['contact_id'] = $data['contact_id'];
+            $total = (empty($recording['debit'])) ? $recording['credit'] : $recording['debit'];
+
+            //ledgers
+            $data['ledgers'][ $recording['financial_account_code']]['financial_account_code'] =  $recording['financial_account_code'];
+            $data['ledgers'][ $recording['financial_account_code']]['effect'] = (empty($recording['debit'])) ? 'credit' : 'debit';
+            $data['ledgers'][ $recording['financial_account_code']]['total'] = @$data['ledgers'][ $recording['financial_account_code']]['total'] + $total;
+            $data['ledgers'][ $recording['financial_account_code']]['contact_id'] = $recording['contact_id'];
         }
-
-        $data['taxable_amount'] = $taxableAmount;
-        $data['total'] = $txnTotal;
-
-
-        //CR ledger
-        $data['ledgers'][] = [
-            'financial_account_code' => null, //todo
-            'effect' => 'credit',
-            'total' => $data['total'],
-            'contact_id' => $data['contact_id']
-        ];
 
         //print_r($data['ledgers']); exit;
 
@@ -150,9 +154,9 @@ class JournalEntryValidateService
         {
             $ledger['tenant_id'] = $data['tenant_id'];
             $ledger['date'] = date('Y-m-d', strtotime($data['date']));
-            $ledger['base_currency'] = $data['base_currency'];
-            $ledger['quote_currency'] = $data['quote_currency'];
-            $ledger['exchange_rate'] = $data['exchange_rate'];
+            $ledger['base_currency'] = $data['currency'];
+            $ledger['quote_currency'] = $data['currency'];
+            $ledger['exchange_rate'] = 1;
         }
         unset($ledger);
 

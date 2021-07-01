@@ -32,7 +32,9 @@ class CreateRgJournalEntryLedgersTable extends Migration
             $table->unsignedBigInteger('financial_account_code');
             $table->enum('effect', ['debit', 'credit']);
             $table->unsignedDecimal('total', 20, 5);
-            $table->string('currency', 3);
+            $table->string('base_currency', 3);
+            $table->string('quote_currency', 3);
+            $table->unsignedDecimal('exchange_rate', 20,5);
             $table->unsignedBigInteger('contact_id');
         });
     }
