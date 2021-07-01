@@ -204,7 +204,7 @@ class JournalEntryService
 
         try
         {
-            $Txn = JournalEntry::with('items', 'ledgers')->findOrFail($id);
+            $Txn = JournalEntry::with('ledgers', 'recordings')->findOrFail($id);
 
             if ($Txn->status == 'approved')
             {
@@ -212,17 +212,16 @@ class JournalEntryService
                 return false;
             }
 
-            //Delete affected relations
-            $Txn->ledgers()->delete();
-            $Txn->recordings()->delete();
-            $Txn->comments()->delete();
-
             //reverse the account balances
             AccountBalanceUpdateService::doubleEntry($Txn, true);
 
             //reverse the contact balances
             ContactBalanceUpdateService::doubleEntry($Txn, true);
 
+            //Delete affected relations
+            $Txn->ledgers()->delete();
+            $Txn->recordings()->delete();
+            $Txn->comments()->delete();
             $Txn->delete();
 
             DB::connection('tenant')->commit();

@@ -174,6 +174,7 @@ class JournalEntryController extends Controller
             return [
                 'status' => true,
                 'messages' => ['Journal Entry deleted'],
+                'callback' => route('journal-entries.index', [], false)
             ];
         }
         else
