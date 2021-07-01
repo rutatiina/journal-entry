@@ -218,7 +218,6 @@ class JournalEntryController extends Controller
         $TxnCopy = new TxnCopy();
         $txnAttributes = $TxnCopy->run($id);
 
-
         $data = [
             'pageTitle' => 'Copy Journal Entry', #required
             'pageAction' => 'Copy', #required
