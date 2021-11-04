@@ -41,7 +41,7 @@
 
                         <loading-txn-side-bar-left-animation></loading-txn-side-bar-left-animation>
 
-                        <div class="table-responsive">
+                        <div class="table-responsive overflow-visible">
 
                             <table class="table table-hover">
                                 <tbody>
