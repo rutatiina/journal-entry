@@ -27,10 +27,10 @@ class JournalEntryController extends Controller
 
     public function __construct()
     {
-        //$this->middleware('permission:estimates.view');
-        //$this->middleware('permission:estimates.create', ['only' => ['create','store']]);
-        //$this->middleware('permission:estimates.update', ['only' => ['edit','update']]);
-        //$this->middleware('permission:estimates.delete', ['only' => ['destroy']]);
+        $this->middleware('permission:journals.view');
+        $this->middleware('permission:journals.create', ['only' => ['create','store']]);
+        $this->middleware('permission:journals.update', ['only' => ['edit','update']]);
+        $this->middleware('permission:journals.delete', ['only' => ['destroy']]);
     }
 
     public function index()
@@ -249,7 +249,7 @@ class JournalEntryController extends Controller
 
         foreach (array_reverse($request->ids) as $id)
         {
-            $txn = Transaction::transaction($id);
+            $txn = JournalEntry::transaction($id);
 
             $txns->push([
                 $txn->date,
@@ -279,7 +279,7 @@ class JournalEntryController extends Controller
         ini_set('max_execution_time', 300); //300 seconds = 5 minutes
         set_time_limit(300);
 
-        $txn = Transaction::transaction($id);
+        $txn = JournalEntry::transaction($id);
 
         $data = [
             'tenant' => Auth::user()->tenant,
