@@ -50,7 +50,7 @@ class Update
         }
 
         if ($Txn->status == 'approved') {
-            $this->errors[] = 'Approved Transaction cannot be not be edited';
+            $this->errors[] = 'Approved journal entry cannot be not be edited';
             return false;
         }
 
